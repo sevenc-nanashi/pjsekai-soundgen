@@ -1,12 +1,13 @@
 import audioop
 import gzip
 import io
-import time
 import json
+import time
 from urllib.parse import quote
 
 import pydub
 import requests
+from tqdm import tqdm
 
 from type import LevelData, LevelList
 
@@ -149,12 +150,7 @@ for i, entity in enumerate(chart_data["entities"], 1):
 start_time = time.time()
 eta = "??:??"
 print("単ノーツの音声を生成中:")
-for i, (sound, position) in enumerate(single_sounds, 1):
-    if i % 20 == 19:
-        current_time = time.time() - start_time
-        eta_int = current_time / (i / len(single_sounds)) - current_time
-        eta = f"{int(eta_int / 60):02d}:{int(eta_int % 60):02d}"
-    print(f"\r  {i}/{len(single_sounds)}   残り時間: {eta}  ", end="")
+for sound, position in tqdm(single_sounds, unit="notes"):
     bgm = overlay_without_sync(bgm, SEG_MAP[sound], position)
 
 print("\n長押しノーツの音声を生成中:")
@@ -175,12 +171,7 @@ for ari, (archetype, ranges) in enumerate(hold_sounds.items(), 1):
 
     eta = "??:??"
     start_time = time.time()
-    for i, (start, end) in enumerate(range_data, 1):
-        if i % 20 == 19:
-            current_time = time.time() - start_time
-            eta_int = current_time / (i / len(range_data)) - current_time
-            eta = f"{int(eta_int / 60):02d}:{int(eta_int % 60):02d}"
-        print(f"\r    {i}/{len(range_data)}   残り時間: {eta}  ", end="")
+    for start, end in tqdm(range_data, unit="notes"):
         bgm = overlay_without_sync_loop(bgm, CONNECT_SEG[archetype], start, end)
     print("")
 
