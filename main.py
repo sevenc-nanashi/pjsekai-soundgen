@@ -35,13 +35,15 @@ def overlay_without_sync(seg1, seg2, position):
     output.write(seg1[:position]._data)
 
     # drop down to the raw data
-    seg1 = seg1[position:]._data
-    seg2 = seg2._data
+    bseg1 = seg1[position:]._data
+    bseg2 = seg2._data
     pos = 0
-    seg2_len = len(seg2)
-    output.write(audioop.add(seg1[pos : pos + seg2_len], seg2, sample_width))
-    pos += seg2_len
-    output.write(seg1[pos:])
+    seg_max = max(len(bseg1), len(bseg2))
+    bseg1 = bseg1.ljust(seg_max, b"\x00")
+    bseg2 = bseg2.ljust(seg_max, b"\x00")
+    output.write(audioop.add(bseg1[pos : pos + seg_max], bseg2, sample_width))
+    pos += seg_max
+    output.write(bseg1[pos:])
 
     return spawn(data=output)
 
@@ -105,10 +107,9 @@ levels: LevelList = session.get(f"https://servers-legacy.purplepalette.net/level
 if not levels["items"]:
     exit("曲が見つかりませんでした。")
 
-level_names = [level["title"] for level in levels["items"]]
 print("曲を選択して下さい: \n")
-for i, level_name in enumerate(level_names):
-    print(f"{i + 1}) {level_name}")
+for i, level in enumerate(levels["items"]):
+    print(f"{i + 1}) {level['title']} / {level['author']} #{level['name']}")
 print("")
 while True:
     index = input("> ")
