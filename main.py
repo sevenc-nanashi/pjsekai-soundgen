@@ -92,7 +92,7 @@ print(
     Developed by {color_escape(0x48b0d5)}名無し｡(@sevenc-nanashi)\033[m
     https://github.com/sevenc-nanashi/pjsekai-soundgen
 {color_escape(0xff5a91)}-------------------------------------------------------------------------------\033[m
-"""
+""".strip()
 )
 
 
