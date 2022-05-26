@@ -2,6 +2,7 @@ import audioop
 import gzip
 import io
 import json
+import os
 import sys
 import time
 from urllib.parse import quote
@@ -28,7 +29,7 @@ SOUND_MAP = {
 }
 
 
-def overlay_without_sync(seg1, seg2, position):
+def overlay_without_sync(seg1: pydub.AudioSegment, seg2: pydub.AudioSegment, position: int) -> pydub.AudioSegment:
     output = io.BytesIO()
     sample_width = seg1.sample_width
     spawn = seg1._spawn
@@ -49,7 +50,9 @@ def overlay_without_sync(seg1, seg2, position):
     return spawn(data=output)
 
 
-def overlay_without_sync_loop(seg1, seg2, start, end):
+def overlay_without_sync_loop(
+    seg1: pydub.AudioSegment, seg2: pydub.AudioSegment, start: int, end: int
+) -> pydub.AudioSegment:
     output = io.BytesIO()
     sample_width = seg1.sample_width
     spawn = seg1._spawn
@@ -182,7 +185,22 @@ for ari, (archetype, slide_notes) in enumerate(hold_sounds.items(), 1):
     print("")
 
 print("音声を出力中...")
-bgm.export(f"./dist/{level['name']}.mp3", format="mp3")
+while True:
+    try:
+        bgm.export(
+            f"./dist/{level['name']}.mp3",
+            format="mp3",
+            bitrate="256k",
+            parameters=["-minrate", "256k", "-maxrate", "256k"],
+        )
+    except PermissionError:
+        print(f"dist/{level['name']}.mp3 への出力に失敗しました。ファイルへの書き込み権限があるか確認してください。10秒後に再試行します。")
+        if os.name == "nt":
+            print("また、ファイルが開かれている可能性もあります。")
+        print("Ctrl+Cで中断します。")
+        time.sleep(10)
+    else:
+        break
 print(f"完了しました。音声は dist/{level['name']}.mp3 に出力されました。")
 total_time = time.time() - total_time
 print(f"合計時間: {int(total_time / 60)}:{int(total_time % 60):02d}")
