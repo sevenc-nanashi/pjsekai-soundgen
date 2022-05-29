@@ -132,6 +132,7 @@ print(f"{level['title']} / {level['author']} #{level['name']} を選択しまし
 total_time = time.time()
 bgm_data = session.get("https://servers.purplepalette.net" + level["bgm"]["url"]).content
 bgm = pydub.AudioSegment.from_file(io.BytesIO(bgm_data)).apply_gain(0.5)
+bgm_length = len(bgm)
 SEG_MAP = {
     name: sync_segment(bgm, pydub.AudioSegment.from_mp3(f"./sounds/{name}.mp3")).apply_gain(volume)
     for name in SOUND_MAP.values()
@@ -159,9 +160,11 @@ for i, entity in enumerate(chart_data["entities"], 1):
 
 start_time = time.time()
 eta = "??:??"
+shift = -min(0, *map(lambda x: x[1], single_sounds))
+bgm = pydub.AudioSegment.silent(duration=shift) + bgm
 print("単ノーツの音声を生成中:")
 for sound, position in tqdm(single_sounds, unit="notes", colour="#8693f6"):
-    bgm = overlay_without_sync(bgm, SEG_MAP[sound], position)
+    bgm = overlay_without_sync(bgm, SEG_MAP[sound], position + shift)
 
 print("\n長押しノーツの音声を生成中:")
 for ari, (archetype, slide_notes) in enumerate(hold_sounds.items(), 1):
@@ -179,9 +182,10 @@ for ari, (archetype, slide_notes) in enumerate(hold_sounds.items(), 1):
     assert count == 0
 
     eta = "??:??"
-    start_time = time.time()
     for start, end in tqdm(ranges, unit="notes", colour=("#5be29c" if archetype == 9 else "#feb848")):
-        bgm = overlay_without_sync_loop(bgm, CONNECT_SEG[archetype], start, end)
+        if start < 0:
+            start = 0
+        bgm = overlay_without_sync_loop(bgm, CONNECT_SEG[archetype], start + shift, end + shift)
     print("")
 
 print("音声を出力中...")
@@ -202,5 +206,5 @@ while True:
     else:
         break
 print(f"完了しました。音声は dist/{level['name']}.mp3 に出力されました。")
-total_time = time.time() - total_time
+total_time = time.time() - start_time
 print(f"合計時間: {int(total_time / 60)}:{int(total_time % 60):02d}")
