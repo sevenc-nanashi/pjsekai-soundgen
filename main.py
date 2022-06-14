@@ -29,7 +29,9 @@ SOUND_MAP = {
 }
 
 
-def overlay_without_sync(seg1: pydub.AudioSegment, seg2: pydub.AudioSegment, position: int) -> pydub.AudioSegment:
+def overlay_without_sync(
+    seg1: pydub.AudioSegment, seg2: pydub.AudioSegment, position: int
+) -> pydub.AudioSegment:
     output = io.BytesIO()
     sample_width = seg1.sample_width
     spawn = seg1._spawn
@@ -102,25 +104,46 @@ print(
 volume = 0.5
 session = requests.Session()
 if len(sys.argv) < 2:
-    name = input("曲名を入力してください: ")
-    keywords = quote(name.encode("utf-8"))
-    levels: LevelList = session.get(f"https://servers-legacy.purplepalette.net/levels/list?keywords={keywords}").json()
+    print("曲名、またはIDを入力してください。\nIDを入力する場合は、先頭に「#」を付けてください。")
+    name = input("> ")
+    if name.startswith("#"):
+        levels: LevelList = {
+            "items": [
+                session.get(f"https://servers-legacy.purplepalette.net/levels/{name}").json()["item"]
+            ]
+        }
+    else:
+        keywords = quote(name.encode("utf-8"))
+        levels: LevelList = session.get(f"https://servers-legacy.purplepalette.net/levels/list?keywords={keywords}").json()
 
     if not levels["items"]:
         exit("曲が見つかりませんでした。")
-
-    print("曲を選択して下さい: \n")
-    for i, level in enumerate(levels["items"]):
-        print(f"{i + 1}) {level['title']} / {level['author']} #{level['name']}")
-    print("")
-    while True:
-        index = input("> ")
-        try:
-            index = int(index)
-            level = levels["items"][index - 1]
-            break
-        except (ValueError, IndexError):
-            pass
+    elif len(levels["items"]) == 1:
+        print("この曲でよろしいですか？\n")
+        level = levels["items"][0]
+        print(f"{level['title']} / {level['author']} #{level['name']}\n")
+        while True:
+            choice = input("Y/N > ")
+            if choice.upper() == "Y":
+                break
+            elif choice.upper() == "N":
+                exit("キャンセルしました。")
+    else:
+        print("曲を選択して下さい。入力無しでキャンセルします: \n")
+        for i, level in enumerate(levels["items"]):
+            print(f"{i + 1}) {level['title']} / {level['author']} #{level['name']}")
+        print("")
+        while True:
+            index = input("> ")
+            if index == "":
+                print("キャンセルしました。")
+                exit()
+            try:
+                index = int(index)
+                level = levels["items"][index - 1]
+                break
+            except (ValueError, IndexError):
+                pass
 else:
     level_id = sys.argv[1]
     level_resp = session.get(f"https://servers-legacy.purplepalette.net/levels/{level_id}")
@@ -146,7 +169,7 @@ CONNECT_SEG = {
 chart_data_gzip = session.get("https://servers.purplepalette.net" + level["data"]["url"]).content
 chart_data: LevelData = json.loads(gzip.decompress(chart_data_gzip).decode("utf-8"))
 print("音声を合成中...")
-single_sounds = set()
+single_sounds: dict[int, set] = {}
 hold_sounds = {9: [], 16: []}
 for i, entity in enumerate(chart_data["entities"], 1):
     if entity["archetype"] < 3:
@@ -156,15 +179,24 @@ for i, entity in enumerate(chart_data["entities"], 1):
         hold_sounds[entity["archetype"]].append((-1, round(entity["data"]["values"][3] * 1000)))
     if SOUND_MAP.get(entity["archetype"]) is None:
         continue
-    single_sounds.add((SOUND_MAP[entity["archetype"]], round(entity["data"]["values"][0] * 1000)))
+    if single_sounds.get(entity["archetype"]) is None:
+        single_sounds[entity["archetype"]] = set()
+    single_sounds[entity["archetype"]].add(round(entity["data"]["values"][0] * 1000))
 
+for single_sound_key, single_sound_positions in single_sounds.items():
+    single_sounds[single_sound_key] = sorted(single_sound_positions)
 start_time = time.time()
 eta = "??:??"
-shift = -min(0, *map(lambda x: x[1], single_sounds))
+shift = -min(sum(single_sounds.values(), [0]))
 bgm = pydub.AudioSegment.silent(duration=shift) + bgm
 print("単ノーツの音声を生成中:")
-for sound, position in tqdm(single_sounds, unit="notes", colour="#8693f6"):
-    bgm = overlay_without_sync(bgm, SEG_MAP[sound], position + shift)
+with tqdm(total=sum(map(len, single_sounds.values())), unit="notes", colour="#8693f6") as pbar:
+    for sound, positions in single_sounds.items():
+        seg = SEG_MAP[SOUND_MAP[sound]]
+        for i, position in enumerate(sorted(positions)):
+            play_position = position + shift
+            bgm = overlay_without_sync(bgm, seg, play_position)
+            pbar.update(1)
 
 print("\n長押しノーツの音声を生成中:")
 for ari, (archetype, slide_notes) in enumerate(hold_sounds.items(), 1):
