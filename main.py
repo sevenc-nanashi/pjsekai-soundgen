@@ -29,9 +29,7 @@ SOUND_MAP = {
 }
 
 
-def overlay_without_sync(
-    seg1: pydub.AudioSegment, seg2: pydub.AudioSegment, position: int
-) -> pydub.AudioSegment:
+def overlay_without_sync(seg1: pydub.AudioSegment, seg2: pydub.AudioSegment, position: int) -> pydub.AudioSegment:
     output = io.BytesIO()
     sample_width = seg1.sample_width
     spawn = seg1._spawn
@@ -108,13 +106,13 @@ if len(sys.argv) < 2:
     name = input("> ")
     if name.startswith("#"):
         levels: LevelList = {
-            "items": [
-                session.get(f"https://servers-legacy.purplepalette.net/levels/{name}").json()["item"]
-            ]
+            "items": [session.get(f"https://servers-legacy.purplepalette.net/levels/{name}").json()["item"]]
         }
     else:
         keywords = quote(name.encode("utf-8"))
-        levels: LevelList = session.get(f"https://servers-legacy.purplepalette.net/levels/list?keywords={keywords}").json()
+        levels: LevelList = session.get(
+            f"https://servers-legacy.purplepalette.net/levels/list?keywords={keywords}"
+        ).json()
 
     if not levels["items"]:
         exit("曲が見つかりませんでした。")
