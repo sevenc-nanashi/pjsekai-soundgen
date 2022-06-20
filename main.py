@@ -91,7 +91,7 @@ print(
     f"""
 {color_escape(0x00bbd0)}== pjsekai-soundgen -----------------------------------------------------------\033[m
     {color_escape(0x00afc7)}pjsekai-soundgen / プロセカ風譜面音声生成ツール\033[m
-    Version: {color_escape(0x0f6ea3)}0.1.0\033[m
+    Version: {color_escape(0x0f6ea3)}0.2.0\033[m
     Developed by {color_escape(0x48b0d5)}名無し｡(@sevenc-nanashi)\033[m
     https://github.com/sevenc-nanashi/pjsekai-soundgen
 {color_escape(0xff5a91)}-------------------------------------------------------------------------------\033[m
