@@ -1,9 +1,9 @@
+import argparse
 import audioop
 import gzip
 import io
 import json
 import os
-import sys
 import time
 from urllib.parse import quote
 
@@ -97,17 +97,34 @@ print(
 {color_escape(0xff5a91)}-------------------------------------------------------------------------------\033[m
 """.strip()
 )
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("id", metavar="ID", help="曲のID。省略すると検索モードになります。", nargs="?")
+parser.add_argument("-h", "--help", action="help", default=argparse.SUPPRESS, help="使い方を表示して終了します。")
+parser.add_argument("--bgm-override", "-b", type=str, help="上書きするBGMのファイル名を指定します。")
+parser.add_argument("--offset", "-g", type=float, help="オフセットを指定します。SEがずらされます。", default=0.0)
+parser.add_argument("--silent", "-s", action="store_true", help="SEだけを生成します。")
+parser.add_argument("--output", "-o", type=str, help="出力ファイル名を指定します。省略するとdist/ID.mp3になります。")
 
+args = parser.parse_args()
 
 volume = 0.5
 session = requests.Session()
-if len(sys.argv) < 2:
+if args.id:
+    level_id = args.id
+    if level_id.startswith("#"):
+        level_id = level_id[1:]
+    level_resp = session.get(f"https://servers-legacy.purplepalette.net/levels/{level_id}")
+    if level_resp.status_code != 200:
+        exit(f"{level_id} を見つけられませんでした。")
+    level = level_resp.json()["item"]
+else:
     print("曲名、またはIDを入力してください。\nIDを入力する場合は、先頭に「#」を付けてください。")
-    name = input("> ")
+    name = input("> ").strip()
     if name.startswith("#"):
-        levels: LevelList = {
-            "items": [session.get(f"https://servers-legacy.purplepalette.net/levels/{name}").json()["item"]]
-        }
+        resp = session.get(f"https://servers-legacy.purplepalette.net/levels/{name[1:]}")
+        if resp.status_code != 200:
+            exit(f"{name} を見つけられませんでした。")
+        levels: LevelList = {"items": [resp.json()["item"]]}
     else:
         keywords = quote(name.encode("utf-8"))
         levels: LevelList = session.get(
@@ -142,17 +159,19 @@ if len(sys.argv) < 2:
                 break
             except (ValueError, IndexError):
                 pass
-else:
-    level_id = sys.argv[1]
-    level_resp = session.get(f"https://servers-legacy.purplepalette.net/levels/{level_id}")
-    if level_resp.status_code != 200:
-        exit(f"{level_id} は存在しません。")
-    level = level_resp.json()["item"]
 print(f"{level['title']} / {level['author']} #{level['name']} を選択しました。")
 
 total_time = time.time()
 bgm_data = session.get("https://servers.purplepalette.net" + level["bgm"]["url"]).content
 bgm = pydub.AudioSegment.from_file(io.BytesIO(bgm_data)).apply_gain(0.5)
+if args.bgm_override:
+    bgm = pydub.AudioSegment.from_file(args.bgm_override)
+if args.silent:
+    bgm = (
+        pydub.AudioSegment.silent(duration=bgm.duration_seconds * 1000)
+        .set_frame_rate(bgm.frame_rate)
+        .set_channels(bgm.channels)
+    )
 bgm_length = len(bgm)
 SEG_MAP = {
     name: sync_segment(bgm, pydub.AudioSegment.from_mp3(f"./sounds/{name}.mp3")).apply_gain(volume)
@@ -192,7 +211,7 @@ with tqdm(total=sum(map(len, single_sounds.values())), unit="notes", colour="#86
     for sound, positions in single_sounds.items():
         seg = SEG_MAP[SOUND_MAP[sound]]
         for i, position in enumerate(sorted(positions)):
-            play_position = position + shift
+            play_position = position + shift + args.offset * 1000
             bgm = overlay_without_sync(bgm, seg, play_position)
             pbar.update(1)
 
@@ -215,26 +234,29 @@ for ari, (archetype, slide_notes) in enumerate(hold_sounds.items(), 1):
     for start, end in tqdm(ranges, unit="notes", colour=("#5be29c" if archetype == 9 else "#feb848")):
         if start < 0:
             start = 0
-        bgm = overlay_without_sync_loop(bgm, CONNECT_SEG[archetype], start + shift, end + shift)
+        bgm = overlay_without_sync_loop(
+            bgm, CONNECT_SEG[archetype], start + shift + args.offset * 1000, end + shift + args.offset * 1000
+        )
     print("")
 
 print("音声を出力中...")
+dist = args.output or f"./dist/{level['name']}.mp3"
 while True:
     try:
         bgm.export(
-            f"./dist/{level['name']}.mp3",
+            dist,
             format="mp3",
             bitrate="256k",
             parameters=["-minrate", "256k", "-maxrate", "256k"],
         )
     except PermissionError:
-        print(f"dist/{level['name']}.mp3 への出力に失敗しました。ファイルへの書き込み権限があるか確認してください。10秒後に再試行します。")
+        print(f"{dist} への出力に失敗しました。ファイルへの書き込み権限があるか確認してください。10秒後に再試行します。")
         if os.name == "nt":
             print("また、ファイルが開かれている可能性もあります。")
         print("Ctrl+Cで中断します。")
         time.sleep(10)
     else:
         break
-print(f"完了しました。音声は dist/{level['name']}.mp3 に出力されました。")
+print(f"完了しました。音声は {dist} に出力されました。")
 total_time = time.time() - start_time
 print(f"合計時間: {int(total_time / 60)}:{int(total_time % 60):02d}")
