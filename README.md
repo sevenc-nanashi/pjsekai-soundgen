@@ -1,3 +1,6 @@
+> **Warning**  
+> このリポジトリはもうメンテナンスされていません。[pjsekai-soundgen-rust](https://github.com/sevenc-nanashi/pjsekai-soundgen-rust)を使用してください。
+
 # pjsekai-soundgen / プロセカ風譜面音声生成ツール
 
 pjsekai-soundgen は、[SweetPotato](https://potato.purplepalette.net)の譜面から音声を生成するツールです。
